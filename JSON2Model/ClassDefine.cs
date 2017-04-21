@@ -18,23 +18,30 @@ namespace JSON2Model
 
         public List<ClassDefine> InnserClassDefines { get; set; }
 
-        public override string ToString()
+        public string ToString(int space)
         {
-            _sb.AppendLine($"public class {Name}");
-            _sb.AppendLine("{");
+            var space1 = GetSpaces(space);
+            var space2 = GetSpaces(space + 4);
+            _sb.AppendLine($"{space1}public class {Name}");
+            _sb.AppendLine($"{space1}{{");
 
             foreach (var property in Properties)
             {
-                _sb.AppendLine($"public {property.Value} {property.Key} {{ get; set ;}}");
+                _sb.AppendLine($"{space2}public {property.Value} {property.Key} {{ get; set ;}}");
             }
 
             foreach (var innserClassDefine in InnserClassDefines)
             {
-                _sb.Append(innserClassDefine);
+                _sb.Append(innserClassDefine.ToString(space+4));
             }
 
-            _sb.AppendLine("}");
+            _sb.AppendLine($"{space1}}}");
             return _sb.ToString();
+        }
+
+        private string GetSpaces(int width)
+        {
+            return string.Empty.PadLeft(width);
         }
     }
 }
