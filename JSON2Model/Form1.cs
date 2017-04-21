@@ -16,5 +16,11 @@ namespace JSON2Model
         {
             InitializeComponent();
         }
+
+        private void Btn_Generate_Click(object sender, EventArgs e)
+        {
+            var cs = new CSharp();
+            richTextBox2.Text = cs.Generate(richTextBox1.Text);
+        }
     }
 }
