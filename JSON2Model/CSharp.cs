@@ -1,122 +1,129 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 
 namespace JSON2Model
 {
-    public class CSharp
+    public class CSharp : ILanguage
     {
-        public string Generate(string json)
+        private readonly bool _formatClassName;
+        private readonly bool _useField;
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="useField">true，字段，false，属性</param>
+        /// <param name="formatClassName">首字母大写，遇下划线则删除并将下划线下一个字符转为大写</param>
+        public CSharp(bool useField,bool formatClassName)
         {
-            var cd = new ClassDefine { Name = "YOUR_NAME" };
-            if (json.StartsWith("["))
+            _useField = useField;
+            _formatClassName = formatClassName;
+        }
+
+        public CSharp()
+            :this(true,false)
+        {
+            
+        }
+
+        public string GenerateCode(ClassDefinition classDefinition)
+        {
+            return GenerateCode(classDefinition, 0);
+        }
+
+        private string GenerateCode(ClassDefinition classDefinition, int space)
+        {
+            StringBuilder sb = new StringBuilder();
+            var space1 = GetSpaces(space);
+            var space2 = GetSpaces(space + 4);
+            sb.AppendLine($"{space1}public class {FormatClassName(classDefinition.Name)}");
+            sb.AppendLine($"{space1}{{");
+
+            foreach (var property in classDefinition.Properties)
             {
-                JArray jarray = JArray.Parse(json);
-                MakeArray(cd,"key",jarray);
-            }
-            else
-            {
-                JObject jobject = JObject.Parse(json);
-                foreach (var kv in jobject)
+                string typename;
+                if (property.PropertyType == JsonType.Class)
                 {
-                    Visit(cd, kv.Key, kv.Value);
+                    typename = FormatClassName(property.ClassName);
+                    if (property.IsArray)
+                    {
+                        typename += "[]";
+                    }
+                }
+                else
+                {
+                    typename = GetTypeString(property.PropertyType, property.IsArray);
+                }
+                var forp = _useField ? ";" : " { get; set; }";
+
+                sb.AppendLine($"{space2}public {typename} {property.Name}{forp}");
+            }
+
+            foreach (var innserClassDefine in classDefinition.NestClassDefinitions)
+            {
+                sb.Append(GenerateCode(innserClassDefine, space + 4));
+            }
+
+            sb.AppendLine($"{space1}}}");
+            return sb.ToString();
+        }
+
+        private string GetTypeString(JsonType jsonType, bool isarray)
+        {
+            string typename;
+            switch (jsonType)
+            {
+                case JsonType.Boolean:
+                    typename = "bool";
+                    break;
+                case JsonType.Float:
+                    typename = "float";
+                    break;
+                case JsonType.Int:
+                    typename = "int";
+                    break;
+                case JsonType.Long:
+                    typename = "long";
+                    break;
+                case JsonType.String:
+                    typename = "string";
+                    break;
+                case JsonType.UnKnow:
+                default:
+                    typename = "dynamic";
+                    break;
+            }
+            if (isarray)
+            {
+                typename = typename + "[]";
+            }
+            return typename;
+        }
+
+        private string GetSpaces(int width)
+        {
+            return string.Empty.PadLeft(width);
+        }
+
+        private string FormatClassName(string className)
+        {
+            if (_formatClassName)
+            {
+                var first = className[0];
+                className = first.ToString().ToUpper() + className.Remove(0, 1);
+                int index;
+                while ((index = className.IndexOf("_", StringComparison.Ordinal)) >= 0)
+                {
+                    className = className.Remove(index, 1);
+                    if (className.Length != index)
+                    {
+                        var upper = className[index];
+                        className = className.Remove(index, 1);
+                        className = className.Insert(index, upper.ToString().ToUpper());
+                    }
                 }
             }
             
-            return cd.ToString(0);
-        }
-
-
-
-
-        private ClassDefine MakeClassDefine(string className, JToken token)
-        {
-            var cd = new ClassDefine { Name = className };
-
-            foreach (JProperty kv in token)
-            {
-                Visit(cd, kv.Name, kv.Value);
-            }
-
-            return cd;
-        }
-
-        private void MakeArray(ClassDefine cd, string key, JArray jarray)
-        {
-            var first = jarray.First;
-            if (jarray.Count == 0 || first == null)
-            {
-                cd.Properties.Add(key, "dynamic");
-                return;
-            }
-
-
-            switch (first.Type)
-            {
-                case JTokenType.Boolean:
-                    cd.Properties.Add(key, "bool[]");
-                    break;
-                case JTokenType.Guid:
-                    cd.Properties.Add(key, "Guid[]");
-                    break;
-                case JTokenType.Float:
-                    cd.Properties.Add(key, "float[]");
-                    break;
-                case JTokenType.Integer:
-                    var vv = (JValue)first;
-                    cd.Properties.Add(key, Convert.ToInt64(vv.Value) > int.MaxValue ? "long[]" : "int[]");
-                    break;
-                case JTokenType.String:
-
-                    cd.Properties.Add(key, "string[]");
-                    break;
-                case JTokenType.Object:
-                    var cdi = MakeClassDefine(key, first);
-                    cd.InnserClassDefines.Add(cdi);
-                    cd.Properties.Add(key, $"{key}[]");
-                    break;
-            }
-        }
-
-        private void Visit(ClassDefine cd, string key, JToken token)
-        {
-            if (token == null)
-            {
-                cd.Properties.Add(key, "dynamic");
-                return;
-            }
-            switch (token.Type)
-            {
-                case JTokenType.Object:
-                    cd.InnserClassDefines.Add(MakeClassDefine(key, token));
-                    break;
-                case JTokenType.Boolean:
-                    cd.Properties.Add(key, "bool");
-                    break;
-                case JTokenType.Integer:
-                    var v = (JValue)token;
-
-                    cd.Properties.Add(key, Convert.ToInt64(v.Value) > int.MaxValue ? "long" : "int");
-                    break;
-                case JTokenType.String:
-
-                    cd.Properties.Add(key, "string");
-                    break;
-                case JTokenType.Guid:
-                    cd.Properties.Add(key, "Guid");
-                    break;
-                case JTokenType.Float:
-                    cd.Properties.Add(key, "float");
-                    break;
-                case JTokenType.Array:
-                    MakeArray(cd, key, (JArray)token);
-
-                    break;
-            }
+            return className;
         }
     }
 }

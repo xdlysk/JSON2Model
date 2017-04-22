@@ -19,8 +19,9 @@ namespace JSON2Model
 
         private void Btn_Generate_Click(object sender, EventArgs e)
         {
-            var cs = new CSharp();
-            richTextBox2.Text = cs.Generate(richTextBox1.Text);
+            IJsonParser jp = new NewtonsoftParser();
+            ILanguage cs = new CSharp();
+            richTextBox2.Text = cs.GenerateCode(jp.Parse(richTextBox1.Text));
         }
     }
 }
